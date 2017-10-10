@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+
+var fs = require("fs");
+
+fs.readdir("./build/contracts", {}, function(err, files){
+    files.forEach(function(el){
+        var contract = JSON.parse(fs.readFileSync("./build/contracts/" + el));
+        if (Object.keys(contract.networks).length) {
+            console.log(el + ":");
+            for (network in contract.networks) {
+                console.log(contract.networks[network].address + " (network: " + network + ")");
+            }
+            console.log();
+        }
+    });
+    process.exit(0);
+});
