@@ -13,6 +13,15 @@ contract DelayedPaymentsEmitter is MultiEventsHistoryAdapter {
 contract DelayedPayments is Object {
    
     uint constant DELAYED_PAYMENTS_SCOPE = 52000;
+    uint constant DELAYED_PAYMENTS_NOT_ALLOWED = DELAYED_PAYMENTS_SCOPE + 2;
+    uint constant DELAYED_PAYMENTS_VALUE_OVERFLOW = DELAYED_PAYMENTS_SCOPE + 3;
+    uint constant DELAYED_PAYMENTS_INVALID_SPENDER = DELAYED_PAYMENTS_SCOPE + 4;
+    uint constant DELAYED_PAYMENTS_TIMESTAMP_ERROR = DELAYED_PAYMENTS_SCOPE + 5;
+    uint constant DELAYED_PAYMENTS_PAYMENT_CANCELED = DELAYED_PAYMENTS_SCOPE + 6;
+    uint constant DELAYED_PAYMENTS_PAYMENT_ALREADY_PAID = DELAYED_PAYMENTS_SCOPE + 7;
+    uint constant DELAYED_PAYMENTS_INSUFFICIENT_BALANCE = DELAYED_PAYMENTS_SCOPE + 8;
+    uint constant DELAYED_PAYMENTS_PAYMENT_NOT_FOUND = DELAYED_PAYMENTS_SCOPE + 9;
+    uint constant DELAYED_PAYMENTS_TRANSFER_ERROR = DELAYED_PAYMENTS_SCOPE + 10;
     uint constant DELAYED_PAYMENTS_INVALID_INVOCATION = DELAYED_PAYMENTS_SCOPE + 17;
 
     /// @dev `Payment` is a public structure that describes the details of
@@ -153,7 +162,7 @@ contract DelayedPayments is Object {
     ) returns(uint) {
 
         // Fail if you arent on the `allowedSpenders` white list
-        if (!allowedSpenders[msg.sender]) throw;
+        if (!allowedSpenders[msg.sender]) return _error(DELAYED_PAYMENTS_NOT_ALLOWED,'NOT ALLOWED');
         uint idPayment = authorizedPayments.length;       // Unique Payment ID
         authorizedPayments.length++;
 
@@ -162,7 +171,7 @@ contract DelayedPayments is Object {
         p.spender = msg.sender;
 
         // Overflow protection
-        if (_paymentDelay > 10**18) throw;
+        if (_paymentDelay > 10**18) return _error(DELAYED_PAYMENTS_VALUE_OVERFLOW,'VALUE OVERFLOW');
 
         // Determines the earliest the recipient can receive payment (Unix time)
         p.earliestPayTime = _paymentDelay >= timeLock ?
@@ -171,32 +180,33 @@ contract DelayedPayments is Object {
         p.recipient = _recipient;
         p.amount = _amount;
         PaymentAuthorized(idPayment, p.recipient, p.amount);
-        return idPayment;
+        return OK;
     }
 
     /// @notice only `allowedSpenders[]` The recipient of a payment calls this
     ///  function to send themselves the ether after the `earliestPayTime` has
     ///  expired
     /// @param _idPayment The payment ID to be executed
-    function collectAuthorizedPayment(uint _idPayment) {
+    function collectAuthorizedPayment(uint _idPayment) returns (uint) {
 
         // Check that the `_idPayment` has been added to the payments struct
-        if (_idPayment >= authorizedPayments.length) return;
+        if (_idPayment >= authorizedPayments.length) return _error(DELAYED_PAYMENTS_PAYMENT_NOT_FOUND,'PAYMENT NOT FOUND');
 
         Payment p = authorizedPayments[_idPayment];
 
         // Checking for reasons not to execute the payment
-        if (msg.sender != p.recipient) return;
-        if (now < p.earliestPayTime) return;
-        if (p.canceled) return;
-        if (p.paid) return;
-        if (this.balance < p.amount) return;
+        if (msg.sender != p.recipient) return _error(DELAYED_PAYMENTS_INVALID_SPENDER,'INVALID SPENDER');
+        if (now < p.earliestPayTime) return _error(DELAYED_PAYMENTS_TIMESTAMP_ERROR,'TIMESTAMP ERROR');
+        if (p.canceled) return _error(DELAYED_PAYMENTS_PAYMENT_CANCELED,'PAYMENT CANCELED');
+        if (p.paid) return _error(DELAYED_PAYMENTS_PAYMENT_ALREADY_PAID,'PAYMENT ALREADY PAID');
+        if (this.balance < p.amount) return _error(DELAYED_PAYMENTS_INSUFFICIENT_BALANCE,'INSUFFICIENT BALANCE');
 
         p.paid = true; // Set the payment to being paid
         if (!p.recipient.send(p.amount)) {  // Make the payment
-            return;
+            return _error(DELAYED_PAYMENTS_TRANSFER_ERROR,'TRANSFER ERROR');
         }
         PaymentExecuted(_idPayment, p.recipient, p.amount);
+        return OK;
      }
 
 /////////
@@ -206,21 +216,22 @@ contract DelayedPayments is Object {
     /// @notice `onlySecurityGuard` Delays a payment for a set number of seconds
     /// @param _idPayment ID of the payment to be delayed
     /// @param _delay The number of seconds to delay the payment
-    function delayPayment(uint _idPayment, uint _delay) onlySecurityGuard {
-        if (_idPayment >= authorizedPayments.length) throw;
+    function delayPayment(uint _idPayment, uint _delay) onlySecurityGuard returns (uint) {
+        if (_idPayment >= authorizedPayments.length) _error(DELAYED_PAYMENTS_PAYMENT_NOT_FOUND,'PAYMENT NOT FOUND');
 
         // Overflow test
-        if (_delay > 10**18) throw;
+        if (_delay > 10**18) _error(DELAYED_PAYMENTS_VALUE_OVERFLOW,'VALUE OVERFLOW');
 
         Payment p = authorizedPayments[_idPayment];
 
         if ((p.securityGuardDelay + _delay > maxSecurityGuardDelay) ||
             (p.paid) ||
             (p.canceled))
-            throw;
+            return _error(DELAYED_PAYMENTS_INVALID_INVOCATION,'INVALID INVOCATION');
 
         p.securityGuardDelay += _delay;
         p.earliestPayTime += _delay;
+        return OK;
     }
 
 ////////
@@ -229,17 +240,18 @@ contract DelayedPayments is Object {
 
     /// @notice `onlyOwner` Cancel a payment all together
     /// @param _idPayment ID of the payment to be canceled.
-    function cancelPayment(uint _idPayment) onlyContractOwner {
-        if (_idPayment >= authorizedPayments.length) throw;
+    function cancelPayment(uint _idPayment) onlyContractOwner returns (uint) {
+        if (_idPayment >= authorizedPayments.length) return _error(DELAYED_PAYMENTS_PAYMENT_NOT_FOUND,'PAYMENT NOT FOUND');
 
         Payment p = authorizedPayments[_idPayment];
 
 
-        if (p.canceled) throw;
-        if (p.paid) throw;
+        if (p.canceled) return _error(DELAYED_PAYMENTS_PAYMENT_CANCELED,'CANCELED');
+        if (p.paid) return _error(DELAYED_PAYMENTS_PAYMENT_ALREADY_PAID,'ALREADY PAID');
 
         p.canceled = true;
         PaymentCanceled(_idPayment);
+        return OK;
     }
 
     /// @notice `onlyOwner` Adds a spender to the `allowedSpenders[]` white list

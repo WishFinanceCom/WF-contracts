@@ -2,7 +2,7 @@ pragma solidity ^0.4.11;
 import "../core/common/Object.sol";
 import '../core/event/MultiEventsHistoryAdapter.sol';
 
-contract DelayedPaymentsEmitter is MultiEventsHistoryAdapter {
+contract Lockup36mEmitter is MultiEventsHistoryAdapter {
         event Error(bytes32 message);
 
         function emitError(bytes32 _message) {
@@ -46,7 +46,7 @@ contract Lockup36m is Object {
      * @param _message error message.
      */
     function _error(uint _errorCode, bytes32 _message) internal returns(uint) {
-        DelayedPaymentsEmitter(eventsHistory).emitError(_message);
+        Lockup36mEmitter(eventsHistory).emitError(_message);
         return _errorCode;
     }
 
@@ -92,20 +92,20 @@ contract Lockup36m is Object {
         lock = accountData(amount,now + 3 years);
         return OK;
     }
-    
+
     function payOut(address _getter) onlyContractOwner returns(uint errorCode) {
         // check if user has funds due for pay out because lock time is over
         uint amount = lock.balance;
         if (now < lock.releaseTime) {
-            return TIME_LOCK_TIMESTAMP_ERROR;
+            return _error(TIME_LOCK_TIMESTAMP_ERROR,'TIMESTAMP ERROR');
         }
         if (amount == 0) {
-            return TIME_LOCK_BALANCE_ERROR;
+            return _error(TIME_LOCK_BALANCE_ERROR,'BALANCE ERROR');
         }
         if(!ERC20Interface(asset).transfer(_getter,amount)) {
-            return TIME_LOCK_TRANSFER_ERROR;
-        } 
-        selfdestruct(msg.sender);     
+            return _error(TIME_LOCK_TRANSFER_ERROR,'TRANSFER ERROR');
+        }
+        selfdestruct(msg.sender);
         return OK;
     }
 
