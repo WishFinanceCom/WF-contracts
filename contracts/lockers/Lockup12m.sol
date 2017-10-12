@@ -10,7 +10,7 @@ contract Lockup12mEmitter is MultiEventsHistoryAdapter {
         }
 }
 
-contract Lockup12m is Object {
+contract Lockup12m is Object, Lockup12mEmitter {
 
     uint constant TIME_LOCK_SCOPE = 51000;
     uint constant TIME_LOCK_TRANSFER_ERROR = TIME_LOCK_SCOPE + 10;

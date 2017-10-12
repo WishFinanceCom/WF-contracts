@@ -10,7 +10,7 @@ contract DelayedPaymentsEmitter is MultiEventsHistoryAdapter {
     }
 }
 
-contract DelayedPayments is Object {
+contract DelayedPayments is Object, DelayedPaymentsEmitter {
    
     uint constant DELAYED_PAYMENTS_SCOPE = 52000;
     uint constant DELAYED_PAYMENTS_NOT_ALLOWED = DELAYED_PAYMENTS_SCOPE + 2;
