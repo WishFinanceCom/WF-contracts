@@ -4,8 +4,8 @@ const WF = artifacts.require("./WF.sol");
 
 module.exports = function(deployer,network) {
     const WF_SYMBOL = 'WF';
-    const WF_NAME = 'Blackmoon Crypto Token';
-    const WF_DESCRIPTION = 'WF blackmooncrypto.com asset';
+    const WF_NAME = 'Wish Finance Crypto Token';
+    const WF_DESCRIPTION = 'WF wishfinance.com asset';
 
     const BASE_UNIT = 8;
     const IS_REISSUABLE = true;
