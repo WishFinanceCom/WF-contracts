@@ -71,13 +71,17 @@ contract Lockup6m is Object {
         return OK;
     }
 
-    function payIn() onlyContractOwner returns(uint errorCode) {
+    function payIn() returns(uint errorCode) {
         // send some amount (in Wei) when calling this function.
         // the amount will then be placed in a locked account
         // the funds will be released once the indicated lock time in seconds
         // passed and can only be retrieved by the same account which was
         // depositing them - highlighting the intrinsic security model
         // offered by a blockchain system like Ethereum
+        errorCode = checkOnlyContractOwner();
+        if (errorCode != OK) {
+            return errorCode;
+        }
         uint amount = ERC20Interface(asset).balanceOf(this);
         if(lock.balance != 0) {
             if(lock.balance != amount) {
@@ -93,7 +97,11 @@ contract Lockup6m is Object {
         return OK;
     }
     
-    function payOut(address _getter) onlyContractOwner returns(uint errorCode) {
+    function payOut(address _getter) returns(uint errorCode) {
+        errorCode = checkOnlyContractOwner();
+        if (errorCode != OK) {
+            return errorCode;
+        }
         // check if user has funds due for pay out because lock time is over
         uint amount = lock.balance;
         if (now < lock.releaseTime) {
